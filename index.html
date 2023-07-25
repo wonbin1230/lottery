@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="javascripts/angularJS-1.8.3.min.js"></script>
+    <script src="javascripts/sweetalert2.js"></script>
+    <title>抽起乃！！</title>
+</head>
+<body ng-app="myApp">
+    <div class="title">抽獎小程式</div>
+    <div class="container" ng-controller="AppController" ng-init="refreshCount()">
+        <div class="input-area">
+            <div class="options">
+                <div class="option-count">目前共計{{optionCount}}個獎項</div>
+                <div class="option" ng-repeat="option in options">
+                    <label for="award">獎項{{$index + 1}}</label>
+                    <input type="text" id="award" ng-model="option.award">
+                    <label for="quantity">數量</label>
+                    <input type="number" id="quantity" min="1" ng-model="option.quantity" ng-change="refreshCount()">
+                </div>
+            </div>
+            <div class="people">
+                <div class="person-count">目前共計{{people.length}}位抽獎人</div>
+                <div class="person" ng-repeat="person in people">
+                    <label for="winner">抽獎人{{$index + 1}}</label>
+                    <input type="text" id="winner" ng-model="person.winner">
+                </div>
+            </div>
+        </div>
+        <div class="add-remove-button-area">
+            <div class="optionBtn">
+                <div class="add-one-option" ng-click="addOne('award')">增加獎項</div>
+                <div class="remove-one-option" ng-click="removeOne('award')">減少獎項</div>
+                <div class="import-options" ng-click="importInfo('award')">匯入獎項</div>
+            </div>
+            <div class="personBtn">
+                <div class="add-one-person" ng-click="addOne('winner')">增加抽獎人</div>
+                <div class="remove-one-person" ng-click="removeOne('winner')">減少抽獎人</div>
+                <div class="import-people" ng-click="importInfo('winner')">匯入抽獎人</div>
+            </div>
+        </div>
+        <div class="output-area">
+                <div class="output" ng-repeat="ele in result">{{ele}}</div>
+        </div>
+        <div class="action-button-area">
+            <div class="lottery" ng-click="lottery()">開始抽獎</div>
+            <div class="copy-result" ng-click="copyResult()">複製抽獎結果</div>
+            <div class="clear-all" ng-click="clearAll()">清除所有</div>
+        </div>
+    </div>
+</body>
+<script>
+    const myApp = angular.module('myApp', []);
+    myApp.controller('AppController', function ($scope) {
+        $scope.options = [
+            { award: "", quantity: 1 }
+        ];
+        $scope.people = [
+            { winner: "" }
+        ];
+        
+        // 獎項數量計算
+        $scope.refreshCount = () => {
+            $scope.optionCount = 0;
+            $scope.options.forEach(ele => {
+                return $scope.optionCount += ele.quantity;
+            });
+        };
+
+        // 新增獎項或抽獎人
+        $scope.addOne = (type) => {
+            if (type === "award") {
+                $scope.options.push({ award: "", quantity: "" });
+            } else {
+                $scope.people.push({ winner: "" });
+            }
+        };
+
+        // 減少獎項或抽獎人
+        $scope.removeOne = (type) => {
+            if (type === "award") {
+                $scope.options.pop();
+            } else {
+                $scope.people.pop();
+            }
+        };
+
+        // 匯入獎項或抽獎人
+        $scope.importInfo = async (type) => {
+            if (type === "award") {
+                const { value: text } = await Swal.fire({
+                    title: "匯入獎項",
+                    input: "textarea",
+                    inputLabel: "請貼上獎項資訊每一個獎項與數量以【逗號，】做區隔\n獎項與獎項以【換行↵】做區隔",
+                    inputPlaceholder: "離職單,1\nIPhone15,3\n40吋液晶電視,5",
+                    showCancelButton: true,
+                    confirmButtonText: "匯入",
+                    cancelButtonText: "取消"
+                });
+
+                if (text) {
+                    let newOptionsList = [];
+                    text.split("\n").forEach(ele => {
+                        let option = ele.split(",");
+                        newOptionsList.push({ award: option[0], quantity: parseInt(option[1]) });
+                    });
+                    $scope.options = newOptionsList;
+                    $scope.refreshCount();
+                    $scope.$apply();
+                };
+            } else {
+                const { value: text } = await Swal.fire({
+                    title: "匯入抽獎人",
+                    input: "textarea",
+                    inputLabel: "請貼上抽獎人資訊，每位抽獎人以【換行↵】做區隔",
+                    inputPlaceholder: "王小明0988123456\n彭于晏0933778998\n張大千0987587087",
+                    showCancelButton: true,
+                    confirmButtonText: "匯入",
+                    cancelButtonText: "取消"
+                });
+
+                if (text) {
+                    let newPeopleList = [];
+                    text.split("\n").forEach(ele => {
+                        newPeopleList.push({ winner: ele });
+                    });
+                    $scope.people = newPeopleList;
+                    $scope.$apply();
+                };
+            };
+        };
+
+        // 抽獎
+        $scope.lottery = () => {
+            $scope.refreshCount();
+            // error handling && push new array optionsArray[]
+            let errorFlag = "N";
+            let optionsArray = [];
+            let peopleArray = [];
+            if ($scope.optionCount > $scope.people.length) return Swal.fire("", `抽獎人數必須大於等於獎項數！<br>目前獎項總數：${$scope.optionCount}項<br>目前抽獎人數：${$scope.people.length}位`, "error");
+            $scope.options.forEach((ele, i) => {
+                if (!ele.award || !ele.quantity) {
+                    errorFlag = "Y";
+                    return Swal.fire("", `獎項${i + 1}名稱或數量不可為空白！`, "error");
+                } else {
+                    for (let index = 0; index < ele.quantity; index++) {
+                        optionsArray.push(ele.award);
+                    }
+                };
+            });
+            $scope.people.forEach((ele, i) => {
+                if (!ele.winner) {
+                    errorFlag = "Y";
+                    return Swal.fire("", `抽獎人${i + 1}不可為空白！`, "error");
+                } else {
+                    peopleArray.push(ele.winner);
+                };
+            });
+            if (errorFlag === "Y") return;
+            // do random action
+            $scope.result = [];
+            optionsArray.forEach((ele, i) => {
+                let personRandomIndex = Math.floor(Math.random() * peopleArray.length);
+                $scope.result.push(`獎項：${ele}  中獎人：${peopleArray[personRandomIndex]}`);
+                peopleArray.splice(personRandomIndex, 1);
+            });
+        };
+
+        // 複製抽獎結果
+        $scope.copyResult = () => {
+            if (!$scope.result || $scope.result.length === 0) return Swal.fire("", "請先抽獎後再點選複製結果！", "error");
+            let result = "";
+            $scope.result.forEach(ele => {
+                result += `${ele}\n`;
+            });
+            navigator.clipboard.writeText(result).then(Swal.fire("", "複製成功！", "success"));
+        };
+
+        // 初始化
+        $scope.clearAll = () => {
+            $scope.options = [
+                { award: "", quantity: 1 }
+            ];
+            $scope.people = [
+                { winner: "" }
+            ];
+            $scope.result = [];
+            $scope.optionCount = 0;
+            $scope.refreshCount();
+        };
+    });
+</script>
+<style>
+    body {
+        background: url("images/bg.gif") top / cover;
+        color: white;
+        font-weight: bold;
+    }
+    .title {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        font-size: 2.5em;
+        font-weight: bold;
+        background-image: 
+            linear-gradient(to right, red,orange,yellow,green,blue,indigo,violet, red); 
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: color-change 200s linear infinite, bounce 3s 2s ease infinite;
+    }
+    @keyframes color-change {
+        to {
+            background-position: 4500vh;
+        }
+    }
+    @keyframes bounce {
+        15%, 25%, 35% {
+            transform: translateY(0px);
+        }
+        20% {
+            transform: translateY(-40px);
+        }
+        30% {
+            transform: translateY(-15px);
+        }
+    }
+    .container {
+        position: relative;
+        margin: 0 auto;
+        max-width: 1500px;
+        height: 800px;
+    }
+    .input-area {
+        margin: 0 auto;
+        max-width: 1500px;
+        height: 260px;
+        display: flex;
+        justify-content: space-around;
+        align-items: end;
+        z-index: 50;
+    }
+    .options {
+        min-width: 600px;
+        height: 250px;
+        border: 2px solid white;
+        overflow-y: overlay;
+    }
+    .people {
+        min-width: 600px;
+        height: 250px;
+        border: 2px solid white;
+        overflow-y: overlay;
+    }
+    .option {
+        display: flex;
+        margin-top: 10px;
+        justify-content: center;
+        align-items: center;
+    }
+    .person {
+        display: flex;
+        margin-top: 10px;
+        justify-content: center;
+        align-items: center;
+    }
+    .option-count, .person-count {
+        text-align: center;
+    }
+    .add-remove-button-area {
+        margin: 0 auto;
+        max-width: 1500px;
+        height: 30px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+    .optionBtn, .personBtn {
+        min-width: 605px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .add-one-option, .add-one-person {
+        font-size: 20px;
+        width: 30%;
+        height: 30px;
+        text-align: center;
+        background-color: green;
+    }
+    .add-one-option:hover, .add-one-person:hover {
+        background-color: rgba(0, 128, 0, 0.5);
+        cursor: pointer;
+    }
+    .remove-one-option, .remove-one-person {
+        font-size: 20px;
+        width: 30%;
+        height: 30px;
+        text-align: center;
+        background-color: red;
+    }
+    .remove-one-option:hover, .remove-one-person:hover {
+        background-color: rgba(255, 0, 0, 0.5);
+        cursor: pointer;
+    }
+    .import-options, .import-people {
+        font-size: 20px;
+        width: 30%;
+        height: 30px;
+        text-align: center;
+        background-color: blue;
+    }
+    .import-options:hover, .import-people:hover {
+        background-color: rgba(0, 0, 255, 0.5);
+        cursor: pointer;
+    }
+    #award {
+        width: 70%;
+    }
+    #quantity {
+        width: 10%;
+    }
+    #winner {
+        width: 80%;
+    }
+    .output-area {
+        margin: 0 auto;
+        margin-top: 20px;
+        max-width: 1350px;
+        height: 500px;
+        border: 2px solid white;
+    }
+    .action-button-area {
+        margin: 0 auto;
+        margin-top: 10px;
+        max-width: 1500px;
+        height: 30px;
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+    }
+    .lottery, .copy-result, .clear-all {
+        text-align: center;
+        font-size: 20px;
+        width: 20%;
+        height: 30px;
+        background-color: blue;
+    }
+    .lottery:hover, .copy-result:hover, .clear-all:hover {
+        background-color: rgba(0, 0, 255, 0.5);
+        cursor: pointer;
+    }
+    .output-area {
+        overflow-y: overlay;
+    }
+    .output {
+        font-size: 2em;
+        font-weight: bold;
+    }
+    .swal2-textarea {
+        min-height: 700px !important;
+    }
+</style>
+</html>
